@@ -47,3 +47,4 @@ pub enum NpcRole {
     Tester,
     PM,
 }
+

@@ -4,9 +4,8 @@ use rand::{thread_rng, Rng};
 use crate::components::*;
 
 pub fn spawn_first_floor(mut commands: Commands) {
-    // Камера уже создана в главном меню, новую не спавним
+    // Камера уже создана, новую не добавляем
 
-    // Фон офиса
     commands.spawn((
         Sprite {
             color: Color::srgb(0.8, 0.8, 0.8),
@@ -18,7 +17,6 @@ pub fn spawn_first_floor(mut commands: Commands) {
 
     let mut rng = thread_rng();
 
-    // Стены
     for _ in 0..20 {
         let x = rng.gen_range(-500.0..500.0);
         let y = rng.gen_range(-500.0..500.0);
@@ -32,7 +30,6 @@ pub fn spawn_first_floor(mut commands: Commands) {
         ));
     }
 
-    // Игрок
     commands.spawn((
         Sprite {
             color: Color::srgb(0.0, 0.0, 1.0),
@@ -47,7 +44,6 @@ pub fn spawn_first_floor(mut commands: Commands) {
         },
     ));
 
-    // Враги
     for i in 0..3 {
         let x = rng.gen_range(-400.0..400.0);
         let y = rng.gen_range(-400.0..400.0);
@@ -67,13 +63,15 @@ pub fn spawn_first_floor(mut commands: Commands) {
                 health: 30,
                 damage: 10,
                 speed: 50.0,
-                direction: Vec2::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0))
-                    .normalize_or_zero(),
+                direction: Vec2::new(
+                    rng.gen_range(-1.0..1.0),
+                    rng.gen_range(-1.0..1.0),
+                )
+                .normalize_or_zero(),
             },
         ));
     }
 
-    // Предметы
     commands.spawn((
         Sprite {
             color: Color::srgb(0.0, 1.0, 0.0),
@@ -97,7 +95,6 @@ pub fn spawn_first_floor(mut commands: Commands) {
         },
     ));
 
-    // NPC
     commands.spawn((
         Sprite {
             color: Color::srgb(0.0, 1.0, 1.0),
@@ -107,7 +104,9 @@ pub fn spawn_first_floor(mut commands: Commands) {
         Transform::from_xyz(-200.0, 200.0, 1.0),
         Npc {
             role: NpcRole::Sysadmin,
-            dialog: vec!["Ну и бардак... Серверная в подвале, ключ USB-шный потерял.".to_string()],
+            dialog: vec![
+                "Ну и бардак... Серверная в подвале, ключ USB-шный потерял.".to_string(),
+            ],
             recruited: false,
         },
     ));
@@ -120,9 +119,8 @@ pub fn spawn_first_floor(mut commands: Commands) {
         Transform::from_xyz(200.0, -200.0, 1.0),
         Npc {
             role: NpcRole::Tester,
-            dialog: vec![
-                "Каждый баг — это фича, если документацию правильно написать.".to_string(),
-            ],
+            dialog: vec!["Каждый баг — это фича, если документацию правильно написать."
+                .to_string()],
             recruited: false,
         },
     ));
@@ -160,10 +158,11 @@ pub fn camera_follow(
     player_q: Query<&Transform, (With<Player>, Without<Camera>)>,
     mut camera_q: Query<&mut Transform, With<Camera>>,
 ) {
-    let player_transform = player_q.single();
-    let mut cam_transform = camera_q.single_mut();
-    cam_transform.translation.x = player_transform.translation.x;
-    cam_transform.translation.y = player_transform.translation.y;
+    // single() и single_mut() возвращают Result
+    if let (Ok(player_transform), Ok(mut cam_transform)) = (player_q.single(), camera_q.single_mut()) {
+        cam_transform.translation.x = player_transform.translation.x;
+        cam_transform.translation.y = player_transform.translation.y;
+    }
 }
 
 pub fn enemy_patrol(time: Res<Time>, mut enemy_q: Query<(&mut Transform, &mut Enemy)>) {
@@ -173,8 +172,8 @@ pub fn enemy_patrol(time: Res<Time>, mut enemy_q: Query<(&mut Transform, &mut En
         transform.translation.y += enemy.direction.y * enemy.speed * time.delta_secs();
 
         if rng.gen_bool(0.02) {
-            enemy.direction =
-                Vec2::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0)).normalize_or_zero();
+            enemy.direction = Vec2::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0))
+                .normalize_or_zero();
         }
 
         if transform.translation.x.abs() > 500.0 || transform.translation.y.abs() > 500.0 {
@@ -187,13 +186,12 @@ pub fn enemy_attack(
     mut player_q: Query<(&Transform, &mut Player)>,
     enemy_q: Query<&Transform, (With<Enemy>, Without<Player>)>,
 ) {
-    let (player_transform, mut player) = player_q.single_mut();
-    for enemy_transform in enemy_q.iter() {
-        let distance = player_transform
-            .translation
-            .distance(enemy_transform.translation);
-        if distance < 30.0 {
-            player.health -= 1;
+    if let Ok((player_transform, mut player)) = player_q.single_mut() {
+        for enemy_transform in enemy_q.iter() {
+            let distance = player_transform.translation.distance(enemy_transform.translation);
+            if distance < 30.0 {
+                player.health -= 1;
+            }
         }
     }
 }
@@ -205,27 +203,26 @@ pub fn pickup_items(
     item_q: Query<(Entity, &Transform, &Item)>,
 ) {
     if keys.just_pressed(KeyCode::KeyE) {
-        let (player_transform, mut player) = player_q.single_mut();
-        for (item_entity, item_transform, item) in item_q.iter() {
-            let distance = player_transform
-                .translation
-                .distance(item_transform.translation);
-            if distance < 30.0 {
-                match item.kind {
-                    ItemKind::Cookie => {
-                        player.health += 5;
-                        println!("+5 здоровья (текущее: {})", player.health);
+        if let Ok((player_transform, mut player)) = player_q.single_mut() {
+            for (item_entity, item_transform, item) in item_q.iter() {
+                let distance = player_transform.translation.distance(item_transform.translation);
+                if distance < 30.0 {
+                    match item.kind {
+                        ItemKind::Cookie => {
+                            player.health += 5;
+                            println!("+5 здоровья (текущее: {})", player.health);
+                        }
+                        ItemKind::Coffee => {
+                            player.speed += 50.0;
+                            println!("Скорость увеличена до {}", player.speed);
+                        }
+                        ItemKind::USBKey => {
+                            player.inventory.push(ItemKind::USBKey);
+                            println!("USB-ключ подобран!");
+                        }
                     }
-                    ItemKind::Coffee => {
-                        player.speed += 50.0;
-                        println!("Скорость увеличена до {}", player.speed);
-                    }
-                    ItemKind::USBKey => {
-                        player.inventory.push(ItemKind::USBKey);
-                        println!("USB-ключ подобран!");
-                    }
+                    commands.entity(item_entity).despawn();
                 }
-                commands.entity(item_entity).despawn();
             }
         }
     }
@@ -237,14 +234,14 @@ pub fn interact_with_npc(
     npc_q: Query<(&Transform, &Npc)>,
 ) {
     if keys.just_pressed(KeyCode::KeyF) {
-        let player_transform = player_q.single();
-        for (npc_transform, npc) in npc_q.iter() {
-            let distance = player_transform
-                .translation
-                .distance(npc_transform.translation);
-            if distance < 40.0 {
-                println!("{:?}: {}", npc.role, npc.dialog[0]);
+        if let Ok(player_transform) = player_q.single() {
+            for (npc_transform, npc) in npc_q.iter() {
+                let distance = player_transform.translation.distance(npc_transform.translation);
+                if distance < 40.0 {
+                    println!("{:?}: {}", npc.role, npc.dialog[0]);
+                }
             }
         }
     }
 }
+

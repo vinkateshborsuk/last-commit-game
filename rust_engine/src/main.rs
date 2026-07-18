@@ -9,8 +9,10 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .insert_state(AppState::MainMenu)
         .add_systems(Startup, setup_main_menu)
-        .add_systems(Update, menu_control.run_if(in_state(AppState::MainMenu)))
-        // Очищаем UI меню при выходе из MainMenu
+        .add_systems(
+            Update,
+            menu_control.run_if(in_state(AppState::MainMenu)),
+        )
         .add_systems(OnExit(AppState::MainMenu), cleanup_main_menu)
         .add_systems(OnEnter(AppState::InGame), spawn_first_floor)
         .add_systems(
@@ -42,7 +44,6 @@ struct MenuButton;
 struct MainMenuUI;
 
 fn setup_main_menu(mut commands: Commands) {
-    // Одна камера на всё приложение
     commands.spawn(Camera2d);
 
     commands
@@ -54,7 +55,7 @@ fn setup_main_menu(mut commands: Commands) {
                 align_items: AlignItems::Center,
                 ..default()
             },
-            MainMenuUI, // маркер для очистки
+            MainMenuUI,
         ))
         .with_children(|parent| {
             parent
@@ -74,7 +75,7 @@ fn setup_main_menu(mut commands: Commands) {
                     parent.spawn((
                         Text::new("Начать игру"),
                         TextFont {
-                            font_size: 28.0,
+                            font_size: FontSize::Px(28.0), // обратно FontSize
                             ..default()
                         },
                         TextColor(Color::WHITE),
@@ -85,7 +86,7 @@ fn setup_main_menu(mut commands: Commands) {
 
 fn cleanup_main_menu(mut commands: Commands, query: Query<Entity, With<MainMenuUI>>) {
     for entity in query.iter() {
-        commands.entity(entity).despawn_recursive();
+        commands.entity(entity).despawn(); // просто despawn, потомки удалятся сами
     }
 }
 
@@ -99,3 +100,4 @@ fn menu_control(
         }
     }
 }
+

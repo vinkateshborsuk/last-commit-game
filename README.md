@@ -9,7 +9,7 @@
 Сейчас готова версия на Rust + Bevy (`rust_engine`).  
 Вы можете добавить реализации на других языках (Godot, Unity, Python и т.д.) — просто создайте новую папку и опишите её ниже.
 
-## Rust (Bevy 0.15) — `rust_engine`
+## Rust (Bevy 0.19) — `rust_engine`
 
 ### Требования
 - Rust 1.77 или новее ([установка](https://rustup.rs/))

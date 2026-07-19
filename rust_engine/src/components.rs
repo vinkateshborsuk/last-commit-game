@@ -16,6 +16,7 @@ pub struct Enemy {
     pub direction: Vec3,
 }
 
+#[derive(Debug)]
 pub enum BugType {
     NullPointer,
     MemoryLeak,
@@ -27,7 +28,7 @@ pub struct Item {
     pub kind: ItemKind,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum ItemKind {
     Cookie,
     Coffee,
@@ -50,3 +51,11 @@ pub enum NpcRole {
 
 #[derive(Component)]
 pub struct MainCamera;
+
+// Маркер для всех игровых объектов (для очистки)
+#[derive(Component)]
+pub struct GameEntity;
+
+// Маркер для стен
+#[derive(Component)]
+pub struct Wall;

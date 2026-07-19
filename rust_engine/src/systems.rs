@@ -2,7 +2,19 @@ use bevy::prelude::*;
 use rand::{thread_rng, Rng};
 
 use crate::components::*;
+use crate::AppState; // импортируем публичное состояние
 
+// ---------- Компоненты для HUD ----------
+#[derive(Component)]
+pub struct HudRoot;
+#[derive(Component)]
+pub struct HealthText;
+#[derive(Component)]
+pub struct SpeedText;
+#[derive(Component)]
+pub struct InventoryText;
+
+// ---------- Система создания первого этажа ----------
 pub fn spawn_first_floor(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -25,6 +37,8 @@ pub fn spawn_first_floor(
         Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.8, -0.5, 0.0)),
     ));
 
+    let mut rng = thread_rng();
+
     // Пол
     commands.spawn((
         Mesh3d(meshes.add(Plane3d::new(Vec3::Y, Vec2::new(50.0, 50.0)))),
@@ -33,9 +47,8 @@ pub fn spawn_first_floor(
             ..default()
         })),
         Transform::from_xyz(0.0, -0.01, 0.0),
+        GameEntity,
     ));
-
-    let mut rng = thread_rng();
 
     // Стены
     let wall_mesh = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
@@ -50,6 +63,8 @@ pub fn spawn_first_floor(
             Mesh3d(wall_mesh.clone()),
             MeshMaterial3d(wall_material.clone()),
             Transform::from_xyz(x, 0.5, z),
+            GameEntity,
+            Wall,
         ));
     }
 
@@ -66,6 +81,7 @@ pub fn spawn_first_floor(
             health: 100,
             inventory: Vec::new(),
         },
+        GameEntity,
     ));
 
     // Враги
@@ -92,6 +108,7 @@ pub fn spawn_first_floor(
                 direction: Vec3::new(rng.gen_range(-1.0..1.0), 0.0, rng.gen_range(-1.0..1.0))
                     .normalize_or_zero(),
             },
+            GameEntity,
         ));
     }
 
@@ -107,6 +124,7 @@ pub fn spawn_first_floor(
         Item {
             kind: ItemKind::Cookie,
         },
+        GameEntity,
     ));
     commands.spawn((
         Mesh3d(item_mesh.clone()),
@@ -118,6 +136,7 @@ pub fn spawn_first_floor(
         Item {
             kind: ItemKind::Coffee,
         },
+        GameEntity,
     ));
 
     // NPC
@@ -134,6 +153,7 @@ pub fn spawn_first_floor(
             dialog: vec!["Ну и бардак... Серверная в подвале, ключ USB-шный потерял.".into()],
             recruited: false,
         },
+        GameEntity,
     ));
     commands.spawn((
         Mesh3d(npc_mesh),
@@ -147,6 +167,7 @@ pub fn spawn_first_floor(
             dialog: vec!["Каждый баг — это фича, если документацию правильно написать.".into()],
             recruited: false,
         },
+        GameEntity,
     ));
 }
 
@@ -165,7 +186,12 @@ pub fn player_movement(
             Without<MainCamera>,
         ),
     >,
+    wall_query: Query<&Transform, (With<Wall>, Without<Player>)>,
 ) {
+    let player_radius = 0.5;
+    let half_extent = 0.5;
+    let boundary = 24.5;
+
     for (mut transform, player) in query.iter_mut() {
         let mut direction = Vec3::ZERO;
         if keys.pressed(KeyCode::KeyW) || keys.pressed(KeyCode::ArrowUp) {
@@ -183,8 +209,55 @@ pub fn player_movement(
         if direction.length_squared() > 0.0 {
             direction = direction.normalize();
         }
-        transform.translation.x += direction.x * player.speed * time.delta_secs();
-        transform.translation.z += direction.z * player.speed * time.delta_secs();
+
+        let delta = time.delta_secs();
+        let speed = player.speed;
+
+        // Движение по X
+        let mut new_x = transform.translation.x + direction.x * speed * delta;
+        if new_x > boundary {
+            new_x = boundary;
+        } else if new_x < -boundary {
+            new_x = -boundary;
+        }
+
+        let mut collides = false;
+        let test_pos_x = Vec3::new(new_x, transform.translation.y, transform.translation.z);
+        for wall_transform in wall_query.iter() {
+            let wall_pos = wall_transform.translation;
+            let dx = (test_pos_x.x - wall_pos.x).abs();
+            let dz = (test_pos_x.z - wall_pos.z).abs();
+            if dx < (player_radius + half_extent) && dz < (player_radius + half_extent) {
+                collides = true;
+                break;
+            }
+        }
+        if !collides {
+            transform.translation.x = new_x;
+        }
+
+        // Движение по Z
+        let mut new_z = transform.translation.z + direction.z * speed * delta;
+        if new_z > boundary {
+            new_z = boundary;
+        } else if new_z < -boundary {
+            new_z = -boundary;
+        }
+
+        collides = false;
+        let test_pos_z = Vec3::new(transform.translation.x, transform.translation.y, new_z);
+        for wall_transform in wall_query.iter() {
+            let wall_pos = wall_transform.translation;
+            let dx = (test_pos_z.x - wall_pos.x).abs();
+            let dz = (test_pos_z.z - wall_pos.z).abs();
+            if dx < (player_radius + half_extent) && dz < (player_radius + half_extent) {
+                collides = true;
+                break;
+            }
+        }
+        if !collides {
+            transform.translation.z = new_z;
+        }
     }
 }
 
@@ -220,6 +293,7 @@ pub fn enemy_patrol(
 pub fn enemy_attack(
     enemy_q: Query<&Transform, (With<Enemy>, Without<Player>)>,
     mut player_q: Query<(&Transform, &mut Player), (With<Player>, Without<Enemy>)>,
+    mut next_state: ResMut<NextState<AppState>>,
 ) {
     if let Ok((player_transform, mut player)) = player_q.single_mut() {
         for enemy_transform in enemy_q.iter() {
@@ -229,6 +303,9 @@ pub fn enemy_attack(
                 < 1.5
             {
                 player.health -= 1;
+                if player.health <= 0 {
+                    next_state.set(AppState::GameOver);
+                }
             }
         }
     }
@@ -236,39 +313,45 @@ pub fn enemy_attack(
 
 pub fn pickup_items(
     mut commands: Commands,
-    keys: Res<ButtonInput<KeyCode>>,
     mut player_q: Query<
         (&Transform, &mut Player),
         (With<Player>, Without<Enemy>, Without<Item>, Without<Npc>),
     >,
-    item_q: Query<
-        (Entity, &Transform, &Item),
+    mut item_q: Query<
+        (Entity, &mut Transform, &Item),
         (With<Item>, Without<Player>, Without<Enemy>, Without<Npc>),
     >,
 ) {
-    if keys.just_pressed(KeyCode::KeyE) {
-        if let Ok((player_transform, mut player)) = player_q.single_mut() {
-            for (item_entity, item_transform, item) in item_q.iter() {
-                if player_transform
-                    .translation
-                    .distance(item_transform.translation)
-                    < 1.5
-                {
-                    match item.kind {
-                        ItemKind::Cookie => {
-                            player.health += 5;
-                            println!("+5 здоровья (текущее: {})", player.health);
-                        }
-                        ItemKind::Coffee => {
-                            player.speed += 2.0;
-                            println!("Скорость увеличена до {}", player.speed);
-                        }
-                        ItemKind::USBKey => {
-                            player.inventory.push(ItemKind::USBKey);
-                            println!("USB-ключ подобран!");
-                        }
+    if let Ok((player_transform, mut player)) = player_q.single_mut() {
+        let mut rng = thread_rng();
+        for (item_entity, mut item_transform, item) in item_q.iter_mut() {
+            if player_transform
+                .translation
+                .distance(item_transform.translation)
+                < 1.5
+            {
+                match item.kind {
+                    ItemKind::Cookie => {
+                        player.health += 5;
+                        println!("+5 здоровья (текущее: {})", player.health);
+                        // Оттолкнуть печеньку
+                        let random_dir =
+                            Vec3::new(rng.gen_range(-1.0..1.0), 0.0, rng.gen_range(-1.0..1.0))
+                                .normalize_or_zero();
+                        let distance = rng.gen_range(3.0..8.0);
+                        let new_pos = item_transform.translation + random_dir * distance;
+                        item_transform.translation = new_pos;
                     }
-                    commands.entity(item_entity).despawn();
+                    ItemKind::Coffee => {
+                        player.speed += 2.0;
+                        println!("Скорость увеличена до {}", player.speed);
+                        commands.entity(item_entity).despawn();
+                    }
+                    ItemKind::USBKey => {
+                        player.inventory.push(ItemKind::USBKey);
+                        println!("USB-ключ подобран!");
+                        commands.entity(item_entity).despawn();
+                    }
                 }
             }
         }
@@ -304,5 +387,98 @@ pub fn camera_follow(
     {
         cam_transform.translation.x = player_transform.translation.x;
         cam_transform.translation.z = player_transform.translation.z + 20.0;
+    }
+}
+
+// ---------- Системы HUD ----------
+
+pub fn setup_hud(mut commands: Commands) {
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                bottom: Val::Px(0.0),
+                left: Val::Px(0.0),
+                width: Val::Percent(100.0),
+                height: Val::Px(60.0),
+                flex_direction: FlexDirection::Row,
+                justify_content: JustifyContent::SpaceAround,
+                align_items: AlignItems::Center,
+                padding: UiRect::all(Val::Px(10.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.7)),
+            HudRoot,
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new("Health: 100"),
+                TextFont::default(),
+                TextColor(Color::WHITE),
+                HealthText,
+            ));
+            parent.spawn((
+                Text::new("Speed: 5.0"),
+                TextFont::default(),
+                TextColor(Color::WHITE),
+                SpeedText,
+            ));
+            parent.spawn((
+                Text::new("Inventory: "),
+                TextFont::default(),
+                TextColor(Color::WHITE),
+                InventoryText,
+            ));
+        });
+}
+
+pub fn cleanup_hud(mut commands: Commands, query: Query<Entity, With<HudRoot>>) {
+    for entity in query.iter() {
+        commands.entity(entity).despawn();
+    }
+}
+
+pub fn update_hud(
+    player_query: Query<&Player, (With<Player>, Without<HudRoot>)>,
+    mut health_text: Query<
+        &mut Text,
+        (With<HealthText>, Without<SpeedText>, Without<InventoryText>),
+    >,
+    mut speed_text: Query<
+        &mut Text,
+        (With<SpeedText>, Without<HealthText>, Without<InventoryText>),
+    >,
+    mut inventory_text: Query<
+        &mut Text,
+        (With<InventoryText>, Without<HealthText>, Without<SpeedText>),
+    >,
+) {
+    if let Ok(player) = player_query.single() {
+        if let Ok(mut text) = health_text.single_mut() {
+            text.0 = format!("Health: {}", player.health);
+        }
+        if let Ok(mut text) = speed_text.single_mut() {
+            text.0 = format!("Speed: {:.1}", player.speed);
+        }
+        if let Ok(mut text) = inventory_text.single_mut() {
+            let inv_str = if player.inventory.is_empty() {
+                "empty".to_string()
+            } else {
+                player
+                    .inventory
+                    .iter()
+                    .map(|item| format!("{:?}", item))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            };
+            text.0 = format!("Inventory: {}", inv_str);
+        }
+    }
+}
+
+// ---------- Очистка игрового мира ----------
+pub fn cleanup_game(mut commands: Commands, query: Query<Entity, With<GameEntity>>) {
+    for entity in query.iter() {
+        commands.entity(entity).despawn();
     }
 }

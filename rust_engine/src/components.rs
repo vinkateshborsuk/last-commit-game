@@ -13,7 +13,7 @@ pub struct Enemy {
     pub health: i32,
     pub damage: i32,
     pub speed: f32,
-    pub direction: Vec2,
+    pub direction: Vec3,
 }
 
 pub enum BugType {
@@ -47,4 +47,7 @@ pub enum NpcRole {
     Tester,
     PM,
 }
+
+#[derive(Component)]
+pub struct MainCamera;
 

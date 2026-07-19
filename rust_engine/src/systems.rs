@@ -9,13 +9,11 @@ pub fn spawn_first_floor(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     // Освещение
-    commands.spawn((
-        AmbientLight {
-            color: Color::srgb(0.3, 0.3, 0.4),
-            brightness: 0.4,
-            affects_lightmapped_meshes: true,
-        },
-    ));
+    commands.spawn((AmbientLight {
+        color: Color::srgb(0.3, 0.3, 0.4),
+        brightness: 0.4,
+        affects_lightmapped_meshes: true,
+    },));
 
     commands.spawn((
         DirectionalLight {
@@ -91,12 +89,8 @@ pub fn spawn_first_floor(
                 health: 30,
                 damage: 10,
                 speed: 2.0,
-                direction: Vec3::new(
-                    rng.gen_range(-1.0..1.0),
-                    0.0,
-                    rng.gen_range(-1.0..1.0),
-                )
-                .normalize_or_zero(),
+                direction: Vec3::new(rng.gen_range(-1.0..1.0), 0.0, rng.gen_range(-1.0..1.0))
+                    .normalize_or_zero(),
             },
         ));
     }
@@ -110,7 +104,9 @@ pub fn spawn_first_floor(
             ..default()
         })),
         Transform::from_xyz(-3.0, 0.5, -3.0),
-        Item { kind: ItemKind::Cookie },
+        Item {
+            kind: ItemKind::Cookie,
+        },
     ));
     commands.spawn((
         Mesh3d(item_mesh.clone()),
@@ -119,7 +115,9 @@ pub fn spawn_first_floor(
             ..default()
         })),
         Transform::from_xyz(3.0, 0.5, 3.0),
-        Item { kind: ItemKind::Coffee },
+        Item {
+            kind: ItemKind::Coffee,
+        },
     ));
 
     // NPC
@@ -157,7 +155,16 @@ pub fn spawn_first_floor(
 pub fn player_movement(
     time: Res<Time>,
     keys: Res<ButtonInput<KeyCode>>,
-    mut query: Query<(&mut Transform, &Player), (With<Player>, Without<Enemy>, Without<Item>, Without<Npc>, Without<MainCamera>)>,
+    mut query: Query<
+        (&mut Transform, &Player),
+        (
+            With<Player>,
+            Without<Enemy>,
+            Without<Item>,
+            Without<Npc>,
+            Without<MainCamera>,
+        ),
+    >,
 ) {
     for (mut transform, player) in query.iter_mut() {
         let mut direction = Vec3::ZERO;
@@ -181,19 +188,27 @@ pub fn player_movement(
     }
 }
 
-pub fn enemy_patrol(time: Res<Time>, mut query: Query<(&mut Transform, &mut Enemy), (With<Enemy>, Without<Player>, Without<Item>, Without<Npc>, Without<MainCamera>)>) {
+pub fn enemy_patrol(
+    time: Res<Time>,
+    mut query: Query<
+        (&mut Transform, &mut Enemy),
+        (
+            With<Enemy>,
+            Without<Player>,
+            Without<Item>,
+            Without<Npc>,
+            Without<MainCamera>,
+        ),
+    >,
+) {
     let mut rng = thread_rng();
     for (mut transform, mut enemy) in query.iter_mut() {
         transform.translation.x += enemy.direction.x * enemy.speed * time.delta_secs();
         transform.translation.z += enemy.direction.z * enemy.speed * time.delta_secs();
 
         if rng.gen_bool(0.02) {
-            enemy.direction = Vec3::new(
-                rng.gen_range(-1.0..1.0),
-                0.0,
-                rng.gen_range(-1.0..1.0),
-            )
-            .normalize_or_zero();
+            enemy.direction = Vec3::new(rng.gen_range(-1.0..1.0), 0.0, rng.gen_range(-1.0..1.0))
+                .normalize_or_zero();
         }
 
         if transform.translation.x.abs() > 20.0 || transform.translation.z.abs() > 20.0 {
@@ -208,7 +223,11 @@ pub fn enemy_attack(
 ) {
     if let Ok((player_transform, mut player)) = player_q.single_mut() {
         for enemy_transform in enemy_q.iter() {
-            if player_transform.translation.distance(enemy_transform.translation) < 1.5 {
+            if player_transform
+                .translation
+                .distance(enemy_transform.translation)
+                < 1.5
+            {
                 player.health -= 1;
             }
         }
@@ -218,13 +237,23 @@ pub fn enemy_attack(
 pub fn pickup_items(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
-    mut player_q: Query<(&Transform, &mut Player), (With<Player>, Without<Enemy>, Without<Item>, Without<Npc>)>,
-    item_q: Query<(Entity, &Transform, &Item), (With<Item>, Without<Player>, Without<Enemy>, Without<Npc>)>,
+    mut player_q: Query<
+        (&Transform, &mut Player),
+        (With<Player>, Without<Enemy>, Without<Item>, Without<Npc>),
+    >,
+    item_q: Query<
+        (Entity, &Transform, &Item),
+        (With<Item>, Without<Player>, Without<Enemy>, Without<Npc>),
+    >,
 ) {
     if keys.just_pressed(KeyCode::KeyE) {
         if let Ok((player_transform, mut player)) = player_q.single_mut() {
             for (item_entity, item_transform, item) in item_q.iter() {
-                if player_transform.translation.distance(item_transform.translation) < 1.5 {
+                if player_transform
+                    .translation
+                    .distance(item_transform.translation)
+                    < 1.5
+                {
                     match item.kind {
                         ItemKind::Cookie => {
                             player.health += 5;
@@ -254,7 +283,11 @@ pub fn interact_with_npc(
     if keys.just_pressed(KeyCode::KeyF) {
         if let Ok(player_transform) = player_q.single() {
             for (npc_transform, npc) in npc_q.iter() {
-                if player_transform.translation.distance(npc_transform.translation) < 2.0 {
+                if player_transform
+                    .translation
+                    .distance(npc_transform.translation)
+                    < 2.0
+                {
                     println!("{:?}: {}", npc.role, npc.dialog[0]);
                 }
             }
@@ -266,9 +299,10 @@ pub fn camera_follow(
     player_q: Query<&Transform, (With<Player>, Without<MainCamera>)>,
     mut camera_q: Query<&mut Transform, (With<MainCamera>, Without<Player>)>,
 ) {
-    if let (Ok(player_transform), Ok(mut cam_transform)) = (player_q.single(), camera_q.single_mut()) {
+    if let (Ok(player_transform), Ok(mut cam_transform)) =
+        (player_q.single(), camera_q.single_mut())
+    {
         cam_transform.translation.x = player_transform.translation.x;
         cam_transform.translation.z = player_transform.translation.z + 20.0;
     }
 }
-

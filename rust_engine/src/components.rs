@@ -50,4 +50,3 @@ pub enum NpcRole {
 
 #[derive(Component)]
 pub struct MainCamera;
-

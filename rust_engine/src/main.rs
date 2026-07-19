@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use bevy::audio::{AudioSource, PlaybackMode};
+use bevy::prelude::*;
 
 mod components;
 mod systems;
@@ -21,19 +21,23 @@ fn main() {
         .add_systems(Update, menu_control.run_if(in_state(AppState::MainMenu)))
         .add_systems(OnExit(AppState::MainMenu), cleanup_main_menu)
         // Игра
-        .add_systems(OnEnter(AppState::InGame), (spawn_first_floor, start_game_music).chain())
+        .add_systems(
+            OnEnter(AppState::InGame),
+            (spawn_first_floor, start_game_music).chain(),
+        )
         .add_systems(OnExit(AppState::InGame), stop_game_music)
         .add_systems(
             Update,
-        (
-        player_movement,
-        enemy_patrol,
-        enemy_attack,
-        pickup_items,
-        interact_with_npc,
-        camera_follow,
-        ).chain()
-         .run_if(in_state(AppState::InGame)),
+            (
+                player_movement,
+                enemy_patrol,
+                enemy_attack,
+                pickup_items,
+                interact_with_npc,
+                camera_follow,
+            )
+                .chain()
+                .run_if(in_state(AppState::InGame)),
         )
         .run();
 }
@@ -187,13 +191,15 @@ fn cleanup_main_menu(mut commands: Commands, query: Query<Entity, With<MainMenuU
 
 // ---------- Музыка ----------
 fn start_game_music(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let music_entity = commands.spawn((
-        AudioPlayer::<AudioSource>(asset_server.load("audio/background.ogg")),
-        PlaybackSettings {
-            mode: PlaybackMode::Loop,
-            ..default()
-        },
-    )).id();
+    let music_entity = commands
+        .spawn((
+            AudioPlayer::<AudioSource>(asset_server.load("audio/background.ogg")),
+            PlaybackSettings {
+                mode: PlaybackMode::Loop,
+                ..default()
+            },
+        ))
+        .id();
     commands.insert_resource(GameMusic(Some(music_entity)));
 }
 
@@ -202,4 +208,3 @@ fn stop_game_music(mut commands: Commands, music: Res<GameMusic>) {
         commands.entity(entity).despawn();
     }
 }
-

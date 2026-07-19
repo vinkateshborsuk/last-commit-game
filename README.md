@@ -56,5 +56,5 @@ Work in your own branch, then open a Pull Request to main.
 
 Discuss ideas in the Issues section.
 
-License
+### License
 MIT – see the LICENSE file for details.

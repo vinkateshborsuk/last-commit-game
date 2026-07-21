@@ -1,58 +1,60 @@
-# Последний коммит: Хроники латте-джунглей
+# The Last Commit: Chronicles of the Latte Jungle
 
-Тактический survival в опустевшем опенспейсе.  
-Вы — последний выживший разработчик. Пробивайтесь через этажи заброшенного технопарка, сражайтесь с багами, собирайте команду и доберитесь до легендарного сервера, чтобы сделать `git push --force` и перезагрузить реальность.
+**Tactical survival** in an abandoned open space.  
+You are the last surviving developer. Fight your way through the floors of a derelict tech park, battle bugs, assemble your team, and reach the legendary server to perform a `git push --force` and reboot reality.
 
-## Структура проекта
+---
 
-Проект мультиязычный: каждый движок/язык живёт в своей папке.  
-Сейчас готова версия на Rust + Bevy (`rust_engine`).  
-Вы можете добавить реализации на других языках (Godot, Unity, Python и т.д.) — просто создайте новую папку и опишите её ниже.
+## Project Structure
 
-## Rust (Bevy 0.19) — `rust_engine`
+The project is **multi‑language** – each engine/language lives in its own folder.  
+Currently, the **Rust + Bevy** version is ready (`rust_engine`).  
+You can add implementations in other languages (Godot, Unity, Python, etc.) – just create a new folder and describe it below.
 
-### Требования
-- Rust 1.77 или новее ([установка](https://rustup.rs/))
+### Rust (Bevy 0.19) — `rust_engine`
 
-### Запуск
+#### Requirements
+- Rust 1.77 or newer ([installation](https://www.rust-lang.org/tools/install))
+
+#### Run
 ```bash
 cd rust_engine
 cargo run
-Сборка релизной версии
+Build Release Version
 bash
 cd rust_engine
 cargo build --release
-# бинарник: rust_engine/target/release/last-commit-game
+# binary: rust_engine/target/release/last-commit-game
 ```
-### Управление
-Клавиша	Действие
-WASD / стрелки	Движение
-E	Подобрать предмет (рядом)
-F	Поговорить с NPC
-Игровые объекты (Rust-версия)
-Синий квадрат – игрок
+### Controls (Rust version)
+Key	Action
+WASD / Arrow keys	Move
+E	Pick up item (nearby)
+F	Talk to NPC
+ESC	Pause menu
+Game Objects (Rust version)
+Blue square – Player
 
-Красные квадраты – баги (отнимают здоровье при касании)
+Red squares – Bugs (drain health on contact)
 
-Зелёный квадрат – печенька (+5 здоровья)
+Green square – Cookie (+5 health)
 
-Жёлтый квадрат – кофе (увеличивает скорость)
+Yellow square – Coffee (increases speed)
 
-Голубой квадрат – сисадмин (диалог)
+Cyan square – Sysadmin (dialogue)
 
-Оранжевый квадрат – тестировщик (диалог)
+Orange square – Tester (dialogue)
 
-Серые квадраты – стены
+Grey squares – Walls (obstacles)
 
-### Как помочь проекту
-Форкните репозиторий.
+### How to Contribute
+Fork the repository.
 
-Если вы пишете на Rust — работайте в папке rust_engine.
-Для других языков создайте отдельную папку (например, godot_engine, python_pygame).
+If you are working in Rust, develop inside the rust_engine folder. For other languages, create a separate folder (e.g., godot_engine, python_pygame).
 
-Ведите разработку в своей ветке, затем создайте Pull Request в main.
+Work in your own branch, then open a Pull Request to main.
 
-Обсуждайте идеи в Issues.
+Discuss ideas in the Issues section.
 
-### Лицензия
-MIT (см. LICENSE)
+### License
+MIT – see the LICENSE file for details.

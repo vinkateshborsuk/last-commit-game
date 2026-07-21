@@ -1,5 +1,6 @@
 use bevy::audio::{AudioSource, PlaybackMode};
 use bevy::prelude::*;
+use bevy::ui::IsDefaultUiCamera;
 use std::process;
 
 mod components;
@@ -40,7 +41,7 @@ fn main() {
                 interact_with_npc,
                 camera_follow,
                 update_hud,
-                pause_on_esc, // добавлена система для вызова паузы
+                pause_on_esc,
             )
                 .chain()
                 .run_if(in_state(AppState::InGame)),
@@ -61,7 +62,6 @@ fn main() {
 
 #[derive(States, Default, Clone, Eq, PartialEq, Debug, Hash)]
 pub enum AppState {
-    // теперь публичный
     #[default]
     Splash,
     MainMenu,
@@ -93,17 +93,20 @@ struct SplashTimer(Timer);
 #[derive(Resource, Default)]
 struct GameMusic(Option<Entity>);
 
-// ---------- Камера ----------
+// ---------- Камера (исправлена) ----------
 fn setup_camera(mut commands: Commands) {
     commands.spawn((
         Camera3d::default(),
         MainCamera,
+        IsDefaultUiCamera,
         Transform::from_xyz(0.0, 20.0, 20.0).looking_at(Vec3::ZERO, Vec3::Y),
     ));
+    println!("Camera created");
 }
 
 // ---------- Заставка ----------
 fn setup_splash(mut commands: Commands) {
+    println!("setup_splash called");
     commands
         .spawn((
             Node {
@@ -120,7 +123,7 @@ fn setup_splash(mut commands: Commands) {
             parent.spawn((
                 Text::new("The Last Commit"),
                 TextFont {
-                    font_size: FontSize::Px(64.0),
+                    font_size: 64.0,
                     ..default()
                 },
                 TextColor(Color::srgba(0.9, 0.9, 0.2, 0.0)),
@@ -142,6 +145,7 @@ fn splash_countdown(
         text_color.0.set_alpha(progress);
     }
     if timer.0.just_finished() {
+        println!("Splash finished, going to MainMenu");
         next_state.set(AppState::MainMenu);
     }
 }
@@ -150,10 +154,12 @@ fn cleanup_splash(mut commands: Commands, query: Query<Entity, With<SplashUI>>) 
     for entity in query.iter() {
         commands.entity(entity).despawn();
     }
+    println!("Splash cleaned up");
 }
 
 // ---------- Главное меню ----------
 fn setup_main_menu(mut commands: Commands) {
+    println!("setup_main_menu called");
     commands
         .spawn((
             Node {
@@ -172,7 +178,7 @@ fn setup_main_menu(mut commands: Commands) {
             parent.spawn((
                 Text::new("The Last Commit"),
                 TextFont {
-                    font_size: FontSize::Px(48.0),
+                    font_size: 48.0,
                     ..default()
                 },
                 TextColor(Color::WHITE),
@@ -195,7 +201,7 @@ fn setup_main_menu(mut commands: Commands) {
                     parent.spawn((
                         Text::new("Start Game"),
                         TextFont {
-                            font_size: FontSize::Px(28.0),
+                            font_size: 28.0,
                             ..default()
                         },
                         TextColor(Color::WHITE),
@@ -210,6 +216,7 @@ fn menu_control(
 ) {
     for inter in interaction.iter() {
         if *inter == Interaction::Pressed {
+            println!("Start Game button pressed, going to InGame");
             next_state.set(AppState::InGame);
         }
     }
@@ -248,13 +255,16 @@ fn pause_on_esc(
     state: Res<State<AppState>>,
 ) {
     if keys.just_pressed(KeyCode::Escape) {
+        println!("ESC pressed, current state: {:?}", state.get());
         if *state.get() == AppState::InGame {
+            println!("Switching to Paused");
             next_state.set(AppState::Paused);
         }
     }
 }
 
 fn setup_pause_menu(mut commands: Commands) {
+    println!("setup_pause_menu called");
     commands
         .spawn((
             Node {
@@ -273,13 +283,12 @@ fn setup_pause_menu(mut commands: Commands) {
             parent.spawn((
                 Text::new("Paused"),
                 TextFont {
-                    font_size: FontSize::Px(48.0),
+                    font_size: 48.0,
                     ..default()
                 },
                 TextColor(Color::WHITE),
             ));
 
-            // Кнопка Resume
             parent
                 .spawn((
                     Button,
@@ -297,14 +306,13 @@ fn setup_pause_menu(mut commands: Commands) {
                     parent.spawn((
                         Text::new("Resume"),
                         TextFont {
-                            font_size: FontSize::Px(28.0),
+                            font_size: 28.0,
                             ..default()
                         },
                         TextColor(Color::WHITE),
                     ));
                 });
 
-            // Кнопка Quit
             parent
                 .spawn((
                     Button,
@@ -322,7 +330,7 @@ fn setup_pause_menu(mut commands: Commands) {
                     parent.spawn((
                         Text::new("Quit"),
                         TextFont {
-                            font_size: FontSize::Px(28.0),
+                            font_size: 28.0,
                             ..default()
                         },
                         TextColor(Color::WHITE),
@@ -338,11 +346,13 @@ fn pause_control(
 ) {
     for inter in interaction_resume.iter() {
         if *inter == Interaction::Pressed {
+            println!("Resume pressed, going to InGame");
             next_state.set(AppState::InGame);
         }
     }
     for inter in interaction_quit.iter() {
         if *inter == Interaction::Pressed {
+            println!("Quit pressed, exiting");
             process::exit(0);
         }
     }
@@ -374,7 +384,7 @@ fn setup_game_over(mut commands: Commands) {
             parent.spawn((
                 Text::new("Game Over"),
                 TextFont {
-                    font_size: FontSize::Px(64.0),
+                    font_size: 64.0,
                     ..default()
                 },
                 TextColor(Color::srgb(1.0, 0.0, 0.0)),
@@ -397,7 +407,7 @@ fn setup_game_over(mut commands: Commands) {
                     parent.spawn((
                         Text::new("Play Again"),
                         TextFont {
-                            font_size: FontSize::Px(28.0),
+                            font_size: 28.0,
                             ..default()
                         },
                         TextColor(Color::WHITE),

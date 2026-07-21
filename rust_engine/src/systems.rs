@@ -1,8 +1,9 @@
 use bevy::prelude::*;
+use bevy::scene::SceneRoot;
 use rand::{thread_rng, Rng};
 
 use crate::components::*;
-use crate::AppState; // импортируем публичное состояние
+use crate::AppState;
 
 // ---------- Компоненты для HUD ----------
 #[derive(Component)]
@@ -17,6 +18,7 @@ pub struct InventoryText;
 // ---------- Система создания первого этажа ----------
 pub fn spawn_first_floor(
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -31,24 +33,13 @@ pub fn spawn_first_floor(
         DirectionalLight {
             color: Color::srgb(1.0, 0.95, 0.8),
             illuminance: 10000.0,
-            shadow_maps_enabled: false,
+            shadows_enabled: false,
             ..default()
         },
         Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.8, -0.5, 0.0)),
     ));
 
     let mut rng = thread_rng();
-
-    // Пол
-    commands.spawn((
-        Mesh3d(meshes.add(Plane3d::new(Vec3::Y, Vec2::new(50.0, 50.0)))),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::srgb(0.8, 0.8, 0.8),
-            ..default()
-        })),
-        Transform::from_xyz(0.0, -0.01, 0.0),
-        GameEntity,
-    ));
 
     // Стены
     let wall_mesh = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
@@ -68,14 +59,39 @@ pub fn spawn_first_floor(
         ));
     }
 
-    // Игрок
+    // 1. Загрузка текстуры с режимом повторения (Repeat)
+    let floor_texture: Handle<Image> = asset_server.load_with_settings(
+        "textures/floor.jpg",
+        |settings: &mut bevy::image::ImageLoaderSettings| {
+            settings.sampler =
+                bevy::image::ImageSampler::Descriptor(bevy::image::ImageSamplerDescriptor {
+                    address_mode_u: bevy::image::ImageAddressMode::Repeat,
+                    address_mode_v: bevy::image::ImageAddressMode::Repeat,
+                    ..default()
+                });
+        },
+    );
+
+    // 2. Создаем маленькую плоскость, но масштабируем её через Transform для тайлинга
     commands.spawn((
-        Mesh3d(meshes.add(Sphere::new(0.5))),
+        // Размер плоскости 1x1 метр. UV-координаты привязаны к этому размеру.
+        Mesh3d(meshes.add(Plane3d::new(Vec3::Y, Vec2::new(1.0, 1.0)))),
         MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::srgb(0.0, 0.0, 1.0),
+            // В новых версиях Bevy цвета берутся из модуля `color` (например, Srgb или палитр)
+            base_color: bevy::color::Color::from(bevy::color::palettes::css::WHITE),
+            base_color_texture: Some(floor_texture),
             ..default()
         })),
-        Transform::from_xyz(0.0, 1.0, 0.0),
+        // Масштабируем до 50x50 метров.
+        // Поскольку текстура зациклена, она повторится 50 раз по осям X и Z!
+        Transform::from_xyz(0.0, -0.01, 0.0).with_scale(Vec3::new(50.0, 1.0, 50.0)),
+        GameEntity,
+    ));
+
+    // ----- Игрок (GLB-модель) -----
+    commands.spawn((
+        SceneRoot(asset_server.load("models/player.glb#Scene0")),
+        Transform::from_xyz(0.0, 2.5, 0.0).with_scale(Vec3::splat(1.5)),
         Player {
             speed: 5.0,
             health: 100,
@@ -290,18 +306,20 @@ pub fn enemy_patrol(
     }
 }
 
+// ------------- ИСПРАВЛЕННАЯ СИСТЕМА АТАКИ ВРАГА (горизонтальное расстояние) -------------
 pub fn enemy_attack(
     enemy_q: Query<&Transform, (With<Enemy>, Without<Player>)>,
     mut player_q: Query<(&Transform, &mut Player), (With<Player>, Without<Enemy>)>,
     mut next_state: ResMut<NextState<AppState>>,
 ) {
     if let Ok((player_transform, mut player)) = player_q.single_mut() {
+        let player_pos = player_transform.translation;
         for enemy_transform in enemy_q.iter() {
-            if player_transform
-                .translation
-                .distance(enemy_transform.translation)
-                < 1.5
-            {
+            // Расстояние только по XZ
+            let dx = player_pos.x - enemy_transform.translation.x;
+            let dz = player_pos.z - enemy_transform.translation.z;
+            let dist_sq = dx * dx + dz * dz;
+            if dist_sq < 1.5 * 1.5 {
                 player.health -= 1;
                 if player.health <= 0 {
                     next_state.set(AppState::GameOver);
@@ -311,8 +329,10 @@ pub fn enemy_attack(
     }
 }
 
+// ------------- ИСПРАВЛЕННАЯ СИСТЕМА ПОДБОРА ПРЕДМЕТОВ (горизонтальное расстояние) -------------
 pub fn pickup_items(
     mut commands: Commands,
+    keys: Res<ButtonInput<KeyCode>>,
     mut player_q: Query<
         (&Transform, &mut Player),
         (With<Player>, Without<Enemy>, Without<Item>, Without<Npc>),
@@ -322,41 +342,46 @@ pub fn pickup_items(
         (With<Item>, Without<Player>, Without<Enemy>, Without<Npc>),
     >,
 ) {
-    if let Ok((player_transform, mut player)) = player_q.single_mut() {
-        let mut rng = thread_rng();
-        for (item_entity, mut item_transform, item) in item_q.iter_mut() {
-            if player_transform
-                .translation
-                .distance(item_transform.translation)
-                < 1.5
-            {
-                match item.kind {
-                    ItemKind::Cookie => {
-                        player.health += 5;
-                        println!("+5 здоровья (текущее: {})", player.health);
-                        // Оттолкнуть печеньку
-                        let random_dir =
-                            Vec3::new(rng.gen_range(-1.0..1.0), 0.0, rng.gen_range(-1.0..1.0))
-                                .normalize_or_zero();
-                        let distance = rng.gen_range(3.0..8.0);
-                        let new_pos = item_transform.translation + random_dir * distance;
-                        item_transform.translation = new_pos;
-                    }
-                    ItemKind::Coffee => {
-                        player.speed += 2.0;
-                        println!("Скорость увеличена до {}", player.speed);
-                        commands.entity(item_entity).despawn();
-                    }
-                    ItemKind::USBKey => {
-                        player.inventory.push(ItemKind::USBKey);
-                        println!("USB-ключ подобран!");
-                        commands.entity(item_entity).despawn();
+    if keys.just_pressed(KeyCode::KeyE) {
+        if let Ok((player_transform, mut player)) = player_q.single_mut() {
+            let player_pos = player_transform.translation;
+            for (item_entity, mut item_transform, item) in item_q.iter_mut() {
+                let dx = player_pos.x - item_transform.translation.x;
+                let dz = player_pos.z - item_transform.translation.z;
+                let dist_sq = dx * dx + dz * dz;
+                if dist_sq < 1.5 * 1.5 {
+                    match item.kind {
+                        ItemKind::Cookie => {
+                            player.health += 5;
+                            println!("+5 здоровья (текущее: {})", player.health);
+                            // Оттолкнуть печеньку
+                            let mut rng = thread_rng();
+                            let random_dir =
+                                Vec3::new(rng.gen_range(-1.0..1.0), 0.0, rng.gen_range(-1.0..1.0))
+                                    .normalize_or_zero();
+                            let distance = rng.gen_range(3.0..8.0);
+                            let new_pos = item_transform.translation + random_dir * distance;
+                            item_transform.translation = new_pos;
+                        }
+                        ItemKind::Coffee => {
+                            player.speed += 2.0;
+                            println!("Скорость увеличена до {}", player.speed);
+                            commands.entity(item_entity).despawn();
+                        }
+                        ItemKind::USBKey => {
+                            player.inventory.push(ItemKind::USBKey);
+                            println!("USB-ключ подобран!");
+                            commands.entity(item_entity).despawn();
+                        }
                     }
                 }
             }
         }
     }
 }
+
+// Остальные системы (interact_with_npc, camera_follow, HUD, cleanup) без изменений.
+// Они приведены ниже для полноты.
 
 pub fn interact_with_npc(
     keys: Res<ButtonInput<KeyCode>>,
@@ -391,8 +416,8 @@ pub fn camera_follow(
 }
 
 // ---------- Системы HUD ----------
-
 pub fn setup_hud(mut commands: Commands) {
+    println!("setup_hud called");
     commands
         .spawn((
             Node {
